@@ -64,6 +64,29 @@ def model_b(text: str):
     ...
 ```
 
+## Mounting on FastAPI
+
+FastGradio apps are ASGI applications, so you can mount them directly on a FastAPI app — just like Gradio:
+
+```python
+from fastapi import FastAPI
+from fastgradio import App
+
+api = FastAPI()
+
+ml = App()
+
+@ml.gpu()
+@ml.api(name="predict")
+def predict(text: str):
+    return model(text)
+
+# Mount the FastGradio app under /ml
+api.mount("/ml", ml)
+```
+
+All FastGradio routes are now available under the mount path (`/ml/api/predict`, `/ml/health/gpu`, etc.). The parent FastAPI app keeps its own routes, middleware, and docs.
+
 ## Requirements
 
 - Python 3.10+
