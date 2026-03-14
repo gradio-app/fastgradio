@@ -1,6 +1,6 @@
 # FastGradio
 
-FastGradio is a Python web framework for ML inference, built on Starlette. It makes it trivial to build production ML APIs with explicit GPU/CPU resource management, automatic request batching, streaming, and health monitoring — all with a decorator-based API that feels like FastAPI.
+FastGradio is a Python web framework for ML inference, built on Starlette. It makes it trivial to build production ML APIs with explicit GPU/CPU resource management, automatic request batching, streaming, and health monitoring with a decorator-based API that feels like FastAPI.
 
 ## Quickstart
 
