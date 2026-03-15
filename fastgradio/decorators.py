@@ -15,6 +15,8 @@ class FunctionMeta:
     api_name: str | None = None
     api_method: str = "POST"
     is_generator: bool = False
+    queue_enabled: bool = False
+    queue_concurrency: int | None = None
 
 
 def _get_or_create_meta(func) -> FunctionMeta:

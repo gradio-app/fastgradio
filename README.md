@@ -39,7 +39,9 @@ app.launch()
 - **`@app.get()` / `@app.post()`** — Standard route decorators with automatic JSON response wrapping.
 - **Streaming** — Functions that `yield` automatically stream responses via SSE.
 - **Batching** — `@app.gpu(batch_size=8, batch_timeout=0.05)` collects concurrent requests and dispatches them as a single batch.
+- **Queue** — Built-in request queue with position tracking, ETA estimation, and SSE status updates.
 - **GPU Health** — Built-in `/health/gpu` endpoint with memory, utilization, and temperature stats.
+- **Gradio compatible** — Mount Gradio apps on FastGradio, or mount FastGradio on FastAPI.
 
 ## GPU Batching
 
@@ -62,6 +64,55 @@ def model_a(text: str):
 @app.api(name="model_b")
 def model_b(text: str):
     ...
+```
+
+## Request Queue
+
+Add `concurrency_limit` to `@app.api()` to enable a Gradio-style request queue with position tracking and ETA:
+
+```python
+@app.gpu()
+@app.api(name="predict", concurrency_limit=2)
+def predict(text: str):
+    return model(text)
+```
+
+Clients interact with the queue via two endpoints:
+
+```python
+# 1. Join the queue
+POST /queue/join  {"endpoint": "predict", "data": {"text": "hello"}}
+# Returns: {"event_id": "abc123"}
+
+# 2. Listen for updates via SSE
+GET /queue/data?event_id=abc123
+# Stream of events:
+#   {"msg": "estimation", "rank": 2, "queue_size": 5, "rank_eta": 3.4}
+#   {"msg": "process_starts", "eta": 1.2}
+#   {"msg": "process_completed", "output": {"data": "result"}, "success": true}
+```
+
+The direct endpoint (`POST /api/predict`) still works for non-queued access.
+
+## Mounting Gradio
+
+Mount a Gradio app on FastGradio — works exactly like mounting on FastAPI:
+
+```python
+import gradio as gr
+from fastgradio import App
+
+app = App()
+
+@app.gpu()
+@app.api(name="predict", concurrency_limit=2)
+def predict(text: str):
+    return model(text)
+
+demo = gr.Interface(predict, "text", "text")
+gr.mount_gradio_app(app, demo, path="/demo")
+
+app.launch()
 ```
 
 ## Mounting on FastAPI
