@@ -136,30 +136,3 @@ GET /queue/data?event_id=abc123
 
 The direct endpoint (`POST /api/predict`) still works for non-queued access.
 
-## Mounting Gradio UIs
-
-Mount a Gradio app alongside your custom routes:
-
-```python
-import gradio as gr
-from gradio import App
-
-app = App()
-
-@app.gpu()
-@app.api(name="predict", concurrency_limit=2)
-def predict(text: str):
-    return model(text)
-
-demo = gr.Interface(predict, "text", "text")
-gr.mount_gradio_app(app, demo, path="/demo")
-
-app.launch()
-```
-
-## Requirements
-
-- Python 3.10+
-- `fastapi`, `uvicorn` (installed automatically)
-- `torch` (optional, for GPU features)
-- `nvidia-ml-py` (optional, for detailed GPU health stats)
