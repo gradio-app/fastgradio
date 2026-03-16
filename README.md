@@ -83,7 +83,7 @@ def model_b(text: str):
 
 ## Request Queue
 
-Add `concurrency_limit` to `@app.api()` to enable a request queue with position tracking and ETA:
+All decorated functions go through the queue with position tracking and ETA:
 
 ```python
 @app.gpu()
