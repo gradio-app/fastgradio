@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import inspect
+import time
 from contextlib import asynccontextmanager
 from typing import Any, Callable
 
@@ -30,18 +31,22 @@ class App(FastAPI):
         self._concurrency_limiter = ConcurrencyLimiter()
         self._queue_processor: QueueProcessor | None = None
         self._queue_routes_registered: bool = False
+        self._startup_hooks: list[Callable] = []
+        self._start_time: float | None = None
 
         if "lifespan" not in kwargs:
             kwargs["lifespan"] = self._default_lifespan
 
         super().__init__(**kwargs)
 
-        # Register health endpoint eagerly
+        # Register health endpoints eagerly
         health_endpoint = build_health_endpoint(self.gpu_manager, self._registered_functions)
         self.add_route("/health/gpu", health_endpoint, methods=["GET"])
+        self.add_route("/health", self._health_endpoint, methods=["GET"])
 
     @asynccontextmanager
     async def _default_lifespan(self, app):
+        self._start_time = time.monotonic()
         self.gpu_manager.initialize()
 
         for processor in self._batch_processors.values():
@@ -49,6 +54,12 @@ class App(FastAPI):
 
         if self._queue_processor:
             await self._queue_processor.start()
+
+        for hook in self._startup_hooks:
+            if inspect.iscoroutinefunction(hook):
+                await hook()
+            else:
+                await run_in_threadpool(hook)
 
         yield
 

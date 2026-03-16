@@ -10,24 +10,14 @@ pip install fastgradio
 
 ```python
 from fastgradio import App
-from pydantic import BaseModel
 
 app = App()
-
-class GenerateRequest(BaseModel):
-    prompt: str
-    temperature: float = 0.7
 
 @app.gpu()
 @app.api(name="generate", concurrency_limit=2)
 def generate(prompt: str):
     for token in model.generate(prompt):
         yield token  # streams via SSE
-
-@app.post("/predict")
-async def predict(req: GenerateRequest):
-    result = generate(req.prompt)
-    return {"result": result}
 
 @app.get("/")
 async def root():
