@@ -24,17 +24,6 @@ app.launch()
 
 Since `App` extends FastAPI, everything you know works: `@app.get()`, `@app.post()`, path params, query params, `Depends()`, `APIRouter`, Pydantic models, `/docs`, `/openapi.json`.
 
-## Features
-
-- **Full FastAPI access** — `App` subclasses FastAPI. All FastAPI features work: Pydantic validation, dependency injection, OpenAPI docs, middleware, routers.
-- **Custom HTML/JS/CSS routes** — Serve pages built entirely with raw HTML, JavaScript, and CSS alongside Gradio components.
-- **`@app.gpu(device=N)`** — Runs your function inside a `torch.cuda.device` context. Auto-assigns GPUs round-robin, or pin to a specific device.
-- **`@app.cpu(concurrency_limit=N)`** — Marks CPU-bound functions with HTTP-layer concurrency limiting.
-- **`@app.api(name="...")`** — Auto-generates a POST endpoint at `/api/{name}` from the function signature.
-- **Streaming** — Functions that `yield` automatically stream responses via SSE.
-- **Batching** — `@app.gpu(batch_size=8, batch_timeout=0.05)` collects concurrent requests and dispatches them as a single batch.
-- **Queue** — Built-in request queue with position tracking, ETA estimation, and SSE status updates.
-- **GPU Health** — Built-in `/health/gpu` endpoint with memory, utilization, and temperature stats.
 
 ## Custom HTML Routes
 
@@ -67,23 +56,6 @@ app.launch()
 ```
 
 Your HTML/JS frontend can call the generated `/api/predict` endpoint directly, giving you full control over the UI while leveraging Gradio's backend for GPU management and queuing.
-
-## Using with FastAPI
-
-Anywhere you use `FastAPI()`, you can use `App()` instead:
-
-```python
-# Before
-from fastapi import FastAPI, Depends
-app = FastAPI()
-
-# After
-from gradio import App
-from fastapi import Depends
-app = App()
-```
-
-Everything works: path parameters, query parameters, Pydantic request/response models, dependency injection, middleware, `APIRouter`, OpenAPI docs at `/docs`, and more. `App` just adds ML-specific features on top.
 
 ## GPU Batching
 
