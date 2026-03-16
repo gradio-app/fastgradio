@@ -11,13 +11,14 @@ app = App()
 
 @app.gpu()
 @app.api(name="generate", concurrency_limit=2)
-def generate(prompt: str):
+async def generate(prompt: str):
     for token in model.generate(prompt):
         yield token  # streams via SSE
 
 @app.get("/")
-async def root():
-    return {"message": "Hello World"}
+async def root(prompt: str):
+    tokens = [token async for token in generate(prompt)]
+    return {"message": tokens}
 
 app.launch()
 ```
@@ -108,3 +109,55 @@ GET /queue/data?event_id=abc123
 
 The direct endpoint (`POST /api/predict`) still works for non-queued access.
 
+## Mounting Gradio UIs
+
+Mount a Gradio app alongside your custom routes:
+
+```python
+import gradio as gr
+from gradio import App
+
+app = App()
+
+@app.gpu()
+@app.api(name="predict", concurrency_limit=2)
+def predict(text: str):
+    return model(text)
+
+demo = gr.Interface(predict, "text", "text")
+gr.mount_gradio_app(app, demo, path="/demo")
+
+app.launch()
+```
+
+## MCP Server
+
+Mark functions as MCP tools with `@app.mcp()` so AI agents and LLM clients can discover and call them:
+
+```python
+from gradio import App
+
+app = App()
+
+@app.gpu()
+@app.mcp(name="generate")
+async def generate(prompt: str):
+    result = model.generate(prompt)
+    return result
+
+@app.gpu()
+@app.mcp(name="summarize")
+def summarize(text: str) -> str:
+    return model.summarize(text)
+
+app.launch()
+```
+
+Each `@app.mcp()` function becomes an MCP tool. The function name, parameters, and type hints are used to generate the tool schema automatically.
+
+## Requirements
+
+- Python 3.10+
+- `fastapi`, `uvicorn` (installed automatically)
+- `torch` (optional, for GPU features)
+- `nvidia-ml-py` (optional, for detailed GPU health stats)
