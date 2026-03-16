@@ -155,9 +155,3 @@ app.launch()
 
 Each `@app.mcp()` function becomes an MCP tool. The function name, parameters, and type hints are used to generate the tool schema automatically.
 
-## Requirements
-
-- Python 3.10+
-- `fastapi`, `uvicorn` (installed automatically)
-- `torch` (optional, for GPU features)
-- `nvidia-ml-py` (optional, for detailed GPU health stats)
