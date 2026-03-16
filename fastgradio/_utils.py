@@ -1,15 +1,6 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any
-
-from starlette.responses import JSONResponse, Response
-
-
-def auto_response(result: Any) -> Response:
-    if isinstance(result, Response):
-        return result
-    return JSONResponse(result)
 
 
 def parse_params_from_body(sig: inspect.Signature, body: dict) -> dict:

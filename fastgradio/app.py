@@ -6,13 +6,13 @@ import inspect
 from contextlib import asynccontextmanager
 from typing import Any, Callable
 
-from starlette.applications import Starlette
+from fastapi import FastAPI
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
-from ._utils import auto_response, parse_params_from_body
+from ._utils import parse_params_from_body
 from .batching import BatchProcessor
 from .concurrency import ConcurrencyLimiter
 from .decorators import FunctionMeta, _detect_generator, _get_or_create_meta
@@ -22,8 +22,8 @@ from .queue import QueueProcessor
 from .streaming import make_streaming_response
 
 
-class App(Starlette):
-    def __init__(self, *, debug: bool = False, lifespan=None, **kwargs):
+class App(FastAPI):
+    def __init__(self, **kwargs):
         self.gpu_manager = GPUManager()
         self._registered_functions: dict[str, FunctionMeta] = {}
         self._batch_processors: dict[str, BatchProcessor] = {}
@@ -31,12 +31,12 @@ class App(Starlette):
         self._queue_processor: QueueProcessor | None = None
         self._queue_routes_registered: bool = False
 
-        if lifespan is None:
-            lifespan = self._default_lifespan
+        if "lifespan" not in kwargs:
+            kwargs["lifespan"] = self._default_lifespan
 
-        super().__init__(debug=debug, lifespan=lifespan, **kwargs)
+        super().__init__(**kwargs)
 
-        # Register health endpoint eagerly so Starlette includes it in routing
+        # Register health endpoint eagerly
         health_endpoint = build_health_endpoint(self.gpu_manager, self._registered_functions)
         self.add_route("/health/gpu", health_endpoint, methods=["GET"])
 
@@ -58,7 +58,7 @@ class App(Starlette):
         for processor in self._batch_processors.values():
             await processor.stop()
 
-    # ── Decorators ──────────────────────────────────────────────
+    # ── ML Decorators ──────────────────────────────────────────
 
     def gpu(
         self,
@@ -77,7 +77,7 @@ class App(Starlette):
                 meta.batch_size = batch_size
                 meta.batch_timeout = batch_timeout
 
-            assigned_device = device  # may be None for auto-assign
+            assigned_device = device
 
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
@@ -146,22 +146,6 @@ class App(Starlette):
             endpoint = self._build_endpoint(func, meta)
             path = f"/api/{api_name}"
             self.add_route(path, endpoint, methods=[method])
-            return func
-
-        return decorator
-
-    def get(self, path: str, **kwargs):
-        def decorator(func):
-            endpoint = self._build_route_endpoint(func)
-            self.add_route(path, endpoint, methods=["GET"], **kwargs)
-            return func
-
-        return decorator
-
-    def post(self, path: str, **kwargs):
-        def decorator(func):
-            endpoint = self._build_route_endpoint(func)
-            self.add_route(path, endpoint, methods=["POST"], **kwargs)
             return func
 
         return decorator
@@ -235,11 +219,9 @@ class App(Starlette):
         async def handler(data: dict):
             kwargs = parse_params_from_body(sig, data)
 
-            # Batching
             if meta.batch_size and func.__name__ in self._batch_processors:
                 return await self._batch_processors[func.__name__].submit(**kwargs)
 
-            # Streaming (return async generator for queue to iterate)
             if meta.is_generator:
                 async def stream():
                     if inspect.isgeneratorfunction(func):
@@ -251,7 +233,6 @@ class App(Starlette):
                             yield item
                 return stream()
 
-            # Sync or async
             if inspect.iscoroutinefunction(func):
                 return await func(**kwargs)
             return await run_in_threadpool(func, **kwargs)
@@ -269,7 +250,6 @@ class App(Starlette):
 
             kwargs = parse_params_from_body(sig, body)
 
-            # Concurrency limiting (skip if queue handles it)
             semaphore = None
             if meta.concurrency_limit and not meta.queue_enabled:
                 semaphore = self._concurrency_limiter.get_semaphore(
@@ -277,15 +257,12 @@ class App(Starlette):
                 )
 
             async def _call():
-                # Batching
                 if meta.batch_size and func.__name__ in self._batch_processors:
                     return await self._batch_processors[func.__name__].submit(**kwargs)
 
-                # Streaming
                 if meta.is_generator:
                     return make_streaming_response(func, kwargs)
 
-                # Sync or async
                 if inspect.iscoroutinefunction(func):
                     return await func(**kwargs)
                 return await run_in_threadpool(func, **kwargs)
@@ -299,15 +276,5 @@ class App(Starlette):
             if isinstance(result, (JSONResponse, StreamingResponse)):
                 return result
             return JSONResponse({"data": result})
-
-        return endpoint
-
-    def _build_route_endpoint(self, func: Callable):
-        async def endpoint(request: Request):
-            if inspect.iscoroutinefunction(func):
-                result = await func()
-            else:
-                result = await run_in_threadpool(func)
-            return auto_response(result)
 
         return endpoint
